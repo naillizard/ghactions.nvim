@@ -1,0 +1,338 @@
+# API Contracts: GitHub Actions Plugin
+
+**Created**: 2025-10-23  
+**Format**: OpenAPI 3.0 inspired (internal API contracts)
+
+## Plugin Commands API
+
+### GhActionsVersions
+
+**Description**: Open Telescope picker for action version selection
+
+**Input**:
+```lua
+{
+  file_path?: string,  -- Optional: current buffer path
+  action?: string,     -- Optional: specific action to focus
+}
+```
+
+**Output**:
+```lua
+{
+  success: boolean,
+  message?: string,
+  actions_selected?: number
+}
+```
+
+**Errors**:
+- `not_workflow_file`: Current file is not a workflow file
+- `no_actions_found`: No action references found in file
+- `api_error`: GitHub API unavailable
+- `cache_error`: Cache access failed
+
+### GhActionsSecure
+
+**Description**: Secure action versions by pinning to commit SHAs
+
+**Input**:
+```lua
+{
+  file_path?: string,  -- Optional: current buffer path
+  action?: string,     -- Optional: specific action to secure
+  all?: boolean        -- Optional: secure all actions
+}
+```
+
+**Output**:
+```lua
+{
+  success: boolean,
+  message?: string,
+  secured_actions?: Array<{
+    owner: string,
+    repo: string,
+    old_version: string,
+    new_sha: string
+  }>
+}
+```
+
+### GhActionsUnsecure
+
+**Description**: Unsecure action versions back to tags
+
+**Input**:
+```lua
+{
+  file_path?: string,  -- Optional: current buffer path
+  action?: string,     -- Optional: specific action to unsecure
+  all?: boolean        -- Optional: unsecure all actions
+}
+```
+
+**Output**:
+```lua
+{
+  success: boolean,
+  message?: string,
+  unsecured_actions?: Array<{
+    owner: string,
+    repo: string,
+    old_sha: string,
+    new_tag: string
+  }>
+}
+```
+
+### GhActionsCachePurge
+
+**Description**: Clear local cache
+
+**Input**:
+```lua
+{
+  action?: string,     -- Optional: specific action cache to clear
+  all?: boolean        -- Optional: clear all cache
+}
+```
+
+**Output**:
+```lua
+{
+  success: boolean,
+  message?: string,
+  cleared_entries?: number
+}
+```
+
+## Internal API Contracts
+
+### Cache Manager
+
+#### get_cache(key: string): Promise<any>
+
+**Description**: Retrieve cached data
+
+**Input**: Cache key string
+
+**Output**:
+```lua
+{
+  data?: any,
+  found: boolean,
+  stale?: boolean
+}
+```
+
+#### set_cache(key: string, data: any, ttl?: number): Promise<boolean>
+
+**Description**: Store data in cache
+
+**Input**: 
+- `key`: Cache key
+- `data`: Data to cache
+- `ttl`: Time to live in seconds (optional)
+
+**Output**: Success boolean
+
+#### clear_cache(pattern?: string): Promise<number>
+
+**Description**: Clear cache entries
+
+**Input**: Optional glob pattern for cache keys
+
+**Output**: Number of cleared entries
+
+### GitHub API Client
+
+#### get_releases(owner: string, repo: string): Promise<Release[]>
+
+**Description**: Get releases for a GitHub repository
+
+**Input**: Repository owner and name
+
+**Output**:
+```lua
+{
+  success: boolean,
+  releases?: Array<{
+    tag_name: string,
+    sha: string,
+    name: string,
+    body: string,
+    published_at: string,
+    prerelease: boolean
+  }>,
+  error?: string
+}
+```
+
+#### get_readme(owner: string, repo: string): Promise<string>
+
+**Description**: Get README content for a repository
+
+**Input**: Repository owner and name
+
+**Output**:
+```lua
+{
+  success: boolean,
+  content?: string,
+  error?: string
+}
+```
+
+#### resolve_tag_to_sha(owner: string, repo: string, tag: string): Promise<string>
+
+**Description**: Resolve a tag to commit SHA
+
+**Input**: Repository owner, name, and tag
+
+**Output**:
+```lua
+{
+  success: boolean,
+  sha?: string,
+  error?: string
+}
+```
+
+### Workflow Parser
+
+#### parse_workflow_file(file_path: string): Promise<ActionReference[]>
+
+**Description**: Parse workflow file and extract action references
+
+**Input**: Path to workflow file
+
+**Output**:
+```lua
+{
+  success: boolean,
+  actions?: Array<{
+    owner: string,
+    repo: string,
+    version: string,
+    line_number: number,
+    type: "tag" | "sha"
+  }>,
+  error?: string
+}
+```
+
+#### update_action_reference(file_path: string, line_number: number, new_version: string): Promise<boolean>
+
+**Description**: Update action reference in workflow file
+
+**Input**:
+- `file_path`: Path to workflow file
+- `line_number`: Line number to update
+- `new_version`: New version (tag or SHA)
+
+**Output**: Success boolean
+
+### Telescope Picker
+
+#### create_picker(actions: ActionReference[], releases: Release[]): Picker
+
+**Description**: Create Telescope picker for action selection
+
+**Input**:
+- `actions`: Array of action references from current file
+- `releases`: Release information for each action
+
+**Output**: Telescope picker instance
+
+#### update_preview(picker: Picker, selection: any): Promise<void>
+
+**Description**: Update preview content for selected item
+
+**Input**:
+- `picker`: Telescope picker instance
+- `selection`: Selected picker entry
+
+**Output**: Promise resolving when preview updated
+
+## Data Schemas
+
+### ActionReference
+```lua
+{
+  owner: string,      -- Repository owner
+  repo: string,       -- Repository name
+  version: string,    -- Current version (tag or SHA)
+  line_number: number,-- Line in workflow file
+  type: "tag" | "sha" -- Version type
+}
+```
+
+### Release
+```lua
+{
+  tag_name: string,     -- Release tag
+  sha: string,          -- Commit SHA
+  name: string,         -- Release name
+  body: string,         -- Release description
+  published_at: string, -- ISO 8601 timestamp
+  prerelease: boolean   -- Prerelease flag
+}
+```
+
+### CacheEntry
+```lua
+{
+  key: string,          -- Cache key
+  data: any,            -- Cached data
+  timestamp: number,    -- Cache time
+  ttl: number,          -- Time to live
+  etag?: string         -- HTTP ETag
+}
+```
+
+### PickerEntry
+```lua
+{
+  display_name: string, -- "owner/repo"
+  value: any,          -- Associated data
+  ordinal: string,     -- Searchable text
+  preview_content: string, -- Preview text
+  metadata: object     -- Additional metadata
+}
+```
+
+## Error Codes
+
+| Code | Description | User Action |
+|------|-------------|-------------|
+| `E001` | Not a workflow file | Open a workflow file |
+| `E002` | No actions found | Add action references to file |
+| `E003` | GitHub API error | Check network connection |
+| `E004` | Rate limit exceeded | Wait and retry |
+| `E005` | Repository not found | Verify action name |
+| `E006` | Cache access denied | Check permissions |
+| `E007` | Invalid action format | Fix action reference |
+| `E008` | Authentication failed | Configure GitHub token |
+
+## Rate Limiting
+
+### GitHub API Limits
+- Authenticated: 5,000 requests/hour
+- Unauthenticated: 60 requests/hour
+- Cache-first approach reduces API calls by 90%
+
+### Internal Rate Limits
+- Cache operations: 100/second
+- File operations: 50/second
+- Picker updates: 30/second
+
+## Performance Targets
+
+| Operation | Target | Measurement |
+|-----------|--------|-------------|
+| Cache lookup | <10ms | Memory access time |
+| API call | <500ms | Network request |
+| Picker open | <200ms | UI response time |
+| Preview update | <100ms | UI update time |
+| File update | <50ms | Disk write time |

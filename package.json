@@ -1,0 +1,29 @@
+{
+  "name": "ghactions.nvim",
+  "version": "1.0.0",
+  "description": "GitHub Actions version management with Telescope integration",
+  "author": "Naillizard <>",
+  "homepage": "https://github.com/naillizard/ghactions.nvim",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/naillizard/ghactions.nvim.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "neovim": ">=0.7.0"
+  },
+  "dependencies": {
+    "nvim-lua/plenary.nvim": ">=0.1.0",
+    "nvim-telescope/telescope.nvim": ">=0.1.0"
+  },
+  "keywords": [
+    "neovim",
+    "plugin",
+    "github",
+    "actions",
+    "telescope",
+    "workflow",
+    "ci/cd"
+  ]
+}
+
