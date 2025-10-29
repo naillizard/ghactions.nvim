@@ -52,7 +52,7 @@ function M.parse_owner_repo(action_name)
     return nil, nil
   end
 
-  -- Handle both standard actions (owner/repo) and reusable workflows (owner/repo/.github/workflows/...) 
+  -- Handle both standard actions (owner/repo) and reusable workflows (owner/repo/.github/workflows/...)
   local owner, repo = action_name:match "^([^/]+)/([^/]+)"
   if not owner or not repo then
     return nil, nil
@@ -134,7 +134,7 @@ function M.get_version_info(action_name, version)
           break
         end
       end
-      
+
       return {
         type = "release",
         version = version,
@@ -333,13 +333,13 @@ function M.get_latest_major_version(action_name, current_major_version)
   if not versions then
     return nil
   end
-  
+
   -- Extract major version from current version (e.g., "v4" from "v4.1.0")
   local current_major = current_major_version:match "^v(%d+)"
   if not current_major then
     return versions.latest
   end
-  
+
   -- Find the latest version with the same major version
   local latest_same_major = nil
   for _, version_entry in ipairs(M.get_sorted_versions(action_name)) do
@@ -349,7 +349,7 @@ function M.get_latest_major_version(action_name, current_major_version)
       break
     end
   end
-  
+
   return latest_same_major or versions.latest
 end
 
@@ -418,14 +418,14 @@ end
 function M.find_actions_in_buffer()
   local actions = {}
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  
+
   for line_num, line in ipairs(lines) do
     -- Look for YAML action pattern: uses: owner/repo@version
     local action_match = line:match "uses:%s*[\"']?([^\"'%s]+)[\"']?"
     if action_match then
       local action_name = M.parse_action_name(action_match)
       local current_version = M.parse_version(action_match)
-      
+
       if action_name and current_version then
         local comment_version = M.extract_comment_version(line)
         table.insert(actions, {
@@ -441,30 +441,107 @@ function M.find_actions_in_buffer()
       end
     end
   end
-  
+
   return actions
+end
+
+-- Consolidate duplicate actions in the list
+function M.consolidate_duplicate_actions(actions)
+  local consolidated = {}
+  local action_map = {}
+
+  -- Group actions by action_name
+  for _, action in ipairs(actions) do
+    local action_name = action.action_name
+    if not action_map[action_name] then
+      action_map[action_name] = {
+        action_name = action_name,
+        line_numbers = {},
+        occurrences = {},
+        current_versions = {},
+        current_version_types = {},
+        full_lines = {},
+        original_versions = {},
+        comment_versions = {},
+        has_comments = {},
+      }
+    end
+
+    local group = action_map[action_name]
+    table.insert(group.line_numbers, action.line_number)
+    table.insert(group.occurrences, action)
+    table.insert(group.current_versions, action.current_version)
+    table.insert(group.current_version_types, action.current_version_type)
+    table.insert(group.full_lines, action.full_line)
+    table.insert(group.original_versions, action.original_version)
+    table.insert(group.comment_versions, action.comment_version)
+    table.insert(group.has_comments, action.has_comment)
+  end
+
+  -- Convert groups back to consolidated format
+  for action_name, group in pairs(action_map) do
+    -- Use the first occurrence as the primary reference
+    local primary = group.occurrences[1]
+
+    -- Determine the most recent version for status checking
+    local most_recent_version = primary.current_version
+    local most_recent_version_type = primary.current_version_type
+    local most_recent_index = 1
+
+    -- Find the most recent version among all occurrences
+    for i, version in ipairs(group.current_versions) do
+      if M.compare_versions(version, most_recent_version) == 1 then
+        most_recent_version = version
+        most_recent_version_type = group.current_version_types[i]
+        most_recent_index = i
+      end
+    end
+
+    -- Create consolidated entry
+    local consolidated_entry = {
+      action_name = action_name,
+      current_version = primary.current_version,
+      current_version_type = primary.current_version_type,
+      line_number = primary.line_number, -- Keep first line as primary
+      line_numbers = group.line_numbers, -- All line numbers
+      line_numbers_display = table.concat(group.line_numbers, ","), -- For display
+      full_line = primary.full_line,
+      original_version = primary.original_version,
+      comment_version = primary.comment_version,
+      has_comment = primary.has_comment,
+      is_consolidated = #group.line_numbers > 1,
+      occurrences = group.occurrences,
+      most_recent_version = most_recent_version,
+      most_recent_version_type = most_recent_version_type,
+      most_recent_index = most_recent_index,
+    }
+
+    table.insert(consolidated, consolidated_entry)
+  end
+
+  return consolidated
 end
 
 -- Find all GitHub Actions in a specific file
 function M.find_actions_in_file(filepath)
   local actions = {}
-  
+
   -- Read file content
   local file = io.open(filepath, "r")
   if not file then
     return actions
   end
-  
+
   local line_num = 0
   for line in file:lines() do
     line_num = line_num + 1
-    
+
     -- Look for YAML action pattern: uses: owner/repo@version
     local action_match = line:match "uses:%s*[\"']?([^\"'%s]+)[\"']?"
     if action_match then
       local action_name = M.parse_action_name(action_match)
       local current_version = M.parse_version(action_match)
-      
+
       if action_name and current_version then
         local comment_version = M.extract_comment_version(line)
         table.insert(actions, {
@@ -480,7 +557,7 @@ function M.find_actions_in_file(filepath)
       end
     end
   end
-  
+
   file:close()
   return actions
 end
@@ -490,9 +567,9 @@ function M.is_commit_sha(version)
   if not version then
     return false
   end
-  
+
   -- Check if it matches SHA pattern (7-40 hex characters)
-  local matches = version:match("^%x+$")
+  local matches = version:match "^%x+$"
   local length_ok = #version >= 7 and #version <= 40
   return matches and length_ok or false
 end
@@ -530,7 +607,7 @@ function M.get_update_status(action_name, current_version)
       latest_version_type = nil,
     }
   end
-  
+
   -- Get latest version
   local latest_version = M.get_latest_version(action_name)
   if not latest_version then
@@ -540,7 +617,7 @@ function M.get_update_status(action_name, current_version)
       latest_version_type = nil,
     }
   end
-  
+
   -- Determine the actual type of the latest version (release vs tag)
   local latest_version_type = "tag" -- default
   local versions = M.get_action_versions(action_name)
@@ -553,13 +630,16 @@ function M.get_update_status(action_name, current_version)
       end
     end
   end
-  
+
   -- If current version is a SHA, we need to compare against the latest tag's SHA
   if M.is_commit_sha(current_version) then
     -- Get the latest release info to compare SHAs
     local latest_release_info = M.get_version_info(action_name, latest_version)
     if latest_release_info and latest_release_info.commit and latest_release_info.commit.sha then
-      if current_version == latest_release_info.commit.sha or current_version:sub(1, 7) == latest_release_info.commit.sha:sub(1, 7) then
+      if
+        current_version == latest_release_info.commit.sha
+        or current_version:sub(1, 7) == latest_release_info.commit.sha:sub(1, 7)
+      then
         return {
           status = "up_to_date",
           latest_version = latest_version,
@@ -577,7 +657,7 @@ function M.get_update_status(action_name, current_version)
     -- Current version is a tag, need to handle semantic versioning
     -- Check if current version is a major version (like "v4")
     local is_major_version = current_version:match "^v%d+$"
-    
+
     if is_major_version then
       -- For major versions, compare against the latest version in the same major series
       local latest_same_major = M.get_latest_major_version(action_name, current_version)
@@ -585,15 +665,15 @@ function M.get_update_status(action_name, current_version)
         -- Get the actual latest version to see if there's a newer major version
         local latest_info = M.get_version_info(action_name, latest_version)
         local latest_same_major_info = M.get_version_info(action_name, latest_same_major)
-        
+
         if latest_same_major_info and latest_info then
           local current_major = current_version:match "^v(%d+)"
           local latest_major = latest_version:match "^v(%d+)"
-          
+
           if current_major and latest_major then
             current_major = tonumber(current_major)
             latest_major = tonumber(latest_major)
-            
+
             if current_major >= latest_major then
               -- User is on the latest major version
               return {
@@ -613,7 +693,7 @@ function M.get_update_status(action_name, current_version)
         end
       end
     end
-    
+
     -- For exact version tags or fallback
     if current_version == latest_version then
       return {
@@ -629,7 +709,7 @@ function M.get_update_status(action_name, current_version)
       }
     end
   end
-  
+
   return {
     status = "unknown",
     latest_version = latest_version,
@@ -642,14 +722,16 @@ function M.enrich_actions_with_status(actions)
   if not actions then
     return {}
   end
-  
+
   for _, action in ipairs(actions) do
-    local status_info = M.get_update_status(action.action_name, action.current_version)
+    -- For consolidated actions, use most_recent_version for status checking
+    local version_for_status = action.most_recent_version or action.current_version
+    local status_info = M.get_update_status(action.action_name, version_for_status)
     action.latest_version = status_info.latest_version
     action.latest_version_type = status_info.latest_version_type
     action.status = status_info.status
   end
-  
+
   return actions
 end
 

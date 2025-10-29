@@ -198,9 +198,13 @@ The plugin automatically chooses the appropriate version format based on the ver
 **Navigation Flow:**
 
 1. `:GhActionsVersions` shows actions in current file
+   - **Duplicate actions are consolidated** into a single entry with concatenated line numbers (e.g., "Lines 14,23,31")
+   - **Single actions** show individual line numbers (e.g., "Line 14")
 2. Press **Enter** on an action to see available versions
 3. Press **Ctrl+B** to go back to actions list (single press, with double-press protection)
 4. Press **Ctrl+U** in the actions list to update to the latest version
+   - **Consolidated actions**: Updates all occurrences with the selected version
+   - **Single actions**: Updates only that specific occurrence
 
 ## License
 

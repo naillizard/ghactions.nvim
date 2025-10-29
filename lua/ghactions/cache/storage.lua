@@ -42,7 +42,7 @@ end
 
 -- Check if cache entry is expired
 function Cache:_is_expired(entry)
-  if not entry.timestamp then
+  if not entry or not entry.timestamp then
     return true
   end
   return (self:_current_time() - entry.timestamp) > self.ttl

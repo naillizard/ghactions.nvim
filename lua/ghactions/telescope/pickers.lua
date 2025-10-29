@@ -309,6 +309,50 @@ local function create_current_actions_displayer()
   return displayer
 end
 
+-- Update action in file (reusable function)
+local function update_action_in_file(selection, version_entry)
+  -- Get the correct version based on type: release->SHA, tag->tag name
+  local new_version, is_sha = versions.get_version_for_update(version_entry)
+  local new_action = selection.action_name .. "@" .. new_version
+
+  -- Determine which lines to update
+  local lines_to_update
+  if selection.is_consolidated and selection.line_numbers then
+    -- Update all instances of this action
+    lines_to_update = selection.line_numbers
+  else
+    -- Update just this single line
+    lines_to_update = { selection.line_number }
+  end
+
+  -- Update each line
+  for _, line_num in ipairs(lines_to_update) do
+    local current_line = vim.fn.getline(line_num)
+
+    -- Replace the action in YAML format, preserving quote style if present
+    local new_line
+    if current_line:match "uses:%s*[\"']" then
+      -- With quotes
+      local quote_char = current_line:match "uses:%s*([\"'])"
+      new_line =
+        current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
+    else
+      -- Without quotes
+      new_line = current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
+    end
+
+    -- Add comment with tag name if we're using SHA and original was a tag
+    -- Only add comment if this specific line didn't already have one
+    if is_sha and not current_line:match("#.*v%d") then
+      local comment = " # " .. version_entry.version
+      new_line = new_line:gsub("%s*$", "") .. comment
+    end
+
+    vim.fn.setline(line_num, new_line)
+  end
+  vim.notify("Updated " .. selection.action_name .. " to " .. new_version, vim.log.levels.INFO)
+end
+
 -- Create entry for current actions picker
 local function create_current_actions_entry(action_entry)
   local displayer = create_current_actions_displayer()
@@ -339,8 +383,13 @@ local function create_current_actions_entry(action_entry)
     status_highlight = "TelescopeResultsError"
   end
 
-  -- File info
-  local file_info = "Line " .. action_entry.line_number
+  -- File info - show all line numbers if consolidated
+  local file_info
+  if action_entry.is_consolidated and action_entry.line_numbers_display then
+    file_info = "Lines " .. action_entry.line_numbers_display
+  else
+    file_info = "Line " .. action_entry.line_number
+  end
 
   return {
     value = action_entry,
@@ -371,6 +420,9 @@ local function current_actions_picker(opts)
     return
   end
 
+  -- Consolidate duplicate actions before enriching
+  current_actions = versions.consolidate_duplicate_actions(current_actions)
+  
   -- Enrich actions with update status
   current_actions = versions.enrich_actions_with_status(current_actions)
 
@@ -391,34 +443,7 @@ local function current_actions_picker(opts)
           M.pick_versions {
             action_name = selection.value.action_name,
             on_select = function(version_entry)
-              -- Update the action in the file
-              local line_num = selection.value.line_number
-              local current_line = vim.fn.getline(line_num)
-
-              -- Get the correct version based on type: release->SHA, tag->tag name
-              local new_version, is_sha = versions.get_version_for_update(version_entry)
-              local new_action = selection.value.action_name .. "@" .. new_version
-
-              -- Replace the action in YAML format, preserving quote style if present
-              local new_line
-              if current_line:match "uses:%s*[\"']" then
-                -- With quotes
-                local quote_char = current_line:match "uses:%s*([\"'])"
-                new_line =
-                  current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-              else
-                -- Without quotes
-                new_line = current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
-              end
-
-              -- Add comment with tag name if we're using SHA and original was a tag
-              if is_sha and selection.value.current_version_type == "tag" then
-                local comment = " # " .. version_entry.version
-                new_line = new_line:gsub("%s*$", "") .. comment
-              end
-
-              vim.fn.setline(line_num, new_line)
-              vim.notify("Updated " .. selection.value.action_name .. " to " .. new_version, vim.log.levels.INFO)
+              update_action_in_file(selection.value, version_entry)
             end,
             on_back = function()
               -- Close current version picker and go back to actions list
@@ -435,14 +460,9 @@ local function current_actions_picker(opts)
       map("i", "<C-u>", function()
         local selection = action_state.get_selected_entry()
         if selection and selection.value.status == "update_available" then
-          -- Update directly to latest version without closing picker
-          local line_num = selection.value.line_number
-          local current_line = vim.fn.getline(line_num)
           local latest_version = selection.value.latest_version
-
           if latest_version then
             -- Create a proper version entry for the latest version
-            -- Use the latest_version_type that was correctly determined in enrich_actions_with_status
             local latest_version_entry = {
               version = latest_version,
               type = selection.value.latest_version_type, -- "release" or "tag"
@@ -469,32 +489,76 @@ local function current_actions_picker(opts)
               end
             end
 
-            -- Get the correct version based on type: release->SHA, tag->tag name
-            local new_version, is_sha = versions.get_version_for_update(latest_version_entry)
-            local new_action = selection.value.action_name .. "@" .. new_version
-
-            -- Replace the action in YAML format
-            local new_line
-            if current_line:match "uses:%s*[\"']" then
-              local quote_char = current_line:match "uses:%s*([\"'])"
-              new_line =
-                current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-            else
-              new_line = current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
-            end
-
-            -- Add comment with tag name if we're using SHA and original was a tag
-            if is_sha and selection.value.current_version_type == "tag" then
-              local comment = " # " .. latest_version
-              new_line = new_line:gsub("%s*$", "") .. comment
-            end
-
-            vim.fn.setline(line_num, new_line)
-            vim.notify("Updated " .. selection.value.action_name .. " to latest: " .. new_version, vim.log.levels.INFO)
+            -- Update using reusable function and refresh picker
+            update_action_in_file(selection.value, latest_version_entry)
 
             -- Refresh the picker data to reflect the update
             local refreshed_actions = versions.find_actions_in_buffer()
             if refreshed_actions and #refreshed_actions > 0 then
+              refreshed_actions = versions.consolidate_duplicate_actions(refreshed_actions)
+              refreshed_actions = versions.enrich_actions_with_status(refreshed_actions)
+
+              -- Update the finder with refreshed data
+              local finder = require("telescope.finders").new_table {
+                results = refreshed_actions,
+                entry_maker = create_current_actions_entry,
+              }
+
+              -- Get the current picker and update its finder
+              local picker = action_state.get_current_picker(prompt_bufnr)
+              picker:refresh(finder, { reset_prompt = false })
+            end
+          else
+            vim.notify("Could not get latest version for " .. selection.value.action_name, vim.log.levels.ERROR)
+          end
+        else
+          vim.notify(
+            "No update available for " .. (selection and selection.value.action_name or "selected action"),
+            vim.log.levels.WARN
+          )
+        end
+      end)
+
+      -- Add normal mode mapping for quick update to latest
+      map("n", "<C-u>", function()
+        local selection = action_state.get_selected_entry()
+        if selection and selection.value.status == "update_available" then
+          local latest_version = selection.value.latest_version
+          if latest_version then
+            -- Create a proper version entry for the latest version
+            local latest_version_entry = {
+              version = latest_version,
+              type = selection.value.latest_version_type, -- "release" or "tag"
+            }
+
+            -- Get commit information based on type
+            if selection.value.latest_version_type == "release" then
+              -- For releases, get the commit SHA from the tags
+              local versions_data = versions.get_action_versions(selection.value.action_name)
+              if versions_data then
+                -- Find the corresponding tag for this release
+                for _, tag in ipairs(versions_data.tags) do
+                  if tag.name == latest_version and tag.commit then
+                    latest_version_entry.commit = tag.commit
+                    break
+                  end
+                end
+              end
+            elseif selection.value.latest_version_type == "tag" then
+              -- For tags, also get the commit info (but we'll use tag name for updates)
+              local version_info = versions.get_version_info(selection.value.action_name, latest_version)
+              if version_info and version_info.commit then
+                latest_version_entry.commit = version_info.commit
+              end
+            end
+
+            -- Update using reusable function and refresh picker
+            update_action_in_file(selection.value, latest_version_entry)
+
+            -- Refresh the picker data to reflect the update
+            local refreshed_actions = versions.find_actions_in_buffer()
+            if refreshed_actions and #refreshed_actions > 0 then
+              refreshed_actions = versions.consolidate_duplicate_actions(refreshed_actions)
               refreshed_actions = versions.enrich_actions_with_status(refreshed_actions)
 
               -- Update the finder with refreshed data
@@ -538,8 +602,8 @@ function M.pick_current_actions(opts)
   opts = opts or {}
 
   -- Merge with telescope configuration
-  local telescope_config = config.get("telescope", {})
-  opts = vim.tbl_deep_extend("force", telescope_config, opts)
+  local telescope_config = config.get("telescope") or {}
+  opts = vim.tbl_deep_extend("force", telescope_config, opts or {})
 
   current_actions_picker(opts)
 end

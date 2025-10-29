@@ -2,7 +2,8 @@
 
 **Feature Branch**: `002-telescope-cache-integration`  
 **Created**: 2025-10-23  
-**Status**: Draft  
+**Status**: Completed  
+**Completed**: 2025-10-29  
 **Input**: User description: "To add to that, when the Telescope picker is invoked with :GhActionsVersions, for each action used in the current workflow file, that is a file under .github/workflows/*.yml|yaml, we first try the cache to locate any actions that are already cached to avoid making unescessary api calls, if there's no cache for a particular action or the cache is stale, the api calls are made to stale or not found actions. The information is then transformed to display in a friendly way in Telescope, for example, for a given file one might have `uses: actions/checkout@v4` or `uses: actions/checkout@sha`, in both cases we need to resolve the github release and display in Telescope. On the left hand side "the picker side" the name of the action in `owner/repo`, ideally a design where the user can view the recent 2 releases of each action and allow the user to preview the readme file on Telescope's preview "right side", the user can move up and down and the preview updates accordingly, if the user hits enter to select the entry, it updates the sha on the `uses: owner/repo@<sha>` file."
 
 ## User Scenarios & Testing *(mandatory)*

@@ -138,16 +138,16 @@ function M.current_actions_previewer()
       -- Current version information
       table.insert(lines, "Current Version: " .. (action.current_version or "Unknown"))
       table.insert(lines, "Version Type: " .. (action.current_version_type or "Unknown"))
-      
+
       if action.latest_version then
         table.insert(lines, "")
         table.insert(lines, "Latest Version: " .. action.latest_version)
         table.insert(lines, "Latest Type: " .. (action.latest_version_type or "Unknown"))
       end
-      
+
       table.insert(lines, "")
       table.insert(lines, "Status: " .. (action.status or "Unknown"))
-      
+
       if action.status == "up_to_date" then
         table.insert(lines, "✓ This action is up to date")
         table.insert(lines, "No action needed")
@@ -163,11 +163,11 @@ function M.current_actions_previewer()
         table.insert(lines, "? Status could not be determined")
         table.insert(lines, "Check network connection or action availability")
       end
-      
+
       table.insert(lines, "")
       table.insert(lines, "File Information:")
       table.insert(lines, "  Line: " .. (action.line_number or "Unknown"))
-      
+
       if action.full_line then
         table.insert(lines, "  Content: " .. action.full_line)
       end
@@ -217,15 +217,15 @@ function M.action_previewer()
         table.insert(lines, "")
         table.insert(lines, "Current Version: " .. action.current_version)
         table.insert(lines, "Current Type: " .. (action.current_version_type or "Unknown"))
-        
+
         if action.latest_version then
           table.insert(lines, "Latest Version: " .. action.latest_version)
           table.insert(lines, "Latest Type: " .. (action.latest_version_type or "Unknown"))
         end
-        
+
         table.insert(lines, "")
         table.insert(lines, "Status: " .. (action.status or "Unknown"))
-        
+
         if action.status == "up_to_date" then
           table.insert(lines, "✓ This action is up to date")
         elseif action.status == "update_available" then
@@ -233,7 +233,7 @@ function M.action_previewer()
         else
           table.insert(lines, "? Status could not be determined")
         end
-        
+
         table.insert(lines, "")
         table.insert(lines, "File Location: Line " .. (action.line_number or "Unknown"))
       end
@@ -353,3 +353,4 @@ function M.workflow_previewer()
 end
 
 return M
+

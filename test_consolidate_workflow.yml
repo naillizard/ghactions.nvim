@@ -1,0 +1,14 @@
+name: Test Consolidation
+on: [push]
+jobs:
+  test:
+    runs: ubuntu-latest
+    steps:
+      - name: First checkout
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v2
+      - name: Second checkout
+        uses: actions/checkout@v4
+      - name: Third checkout
+        uses: actions/checkout@v3
