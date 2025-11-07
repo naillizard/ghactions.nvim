@@ -75,9 +75,7 @@ function M.check()
   end
 
   -- Report results
-  if health_ok then
-    vim.notify("ghactions.nvim: All dependencies satisfied", vim.log.levels.INFO)
-  else
+  if not health_ok then
     local msg = "ghactions.nvim: Dependency issues found:\n" .. table.concat(issues, "\n")
     vim.notify(msg, vim.log.levels.ERROR)
   end
