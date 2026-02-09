@@ -92,7 +92,7 @@ Secure the current action by pinning it to a specific commit SHA.
 :GhActionsSecureAll
 ```
 
-Secure every action in the current buffer. Each action is pinned to the commit SHA for its existing version (no automatic upgrades). A trailing `# <version>` comment is added so that the original tag can be restored later.
+Secure every action in the current buffer. Each action is pinned to commit SHA for its existing version (no automatic upgrades). A trailing `# <version>` comment is added to allow unsecuring back to tagged versions.
 
 ### Unsecure Actions
 
@@ -100,7 +100,7 @@ Secure every action in the current buffer. Each action is pinned to the commit S
 :GhActionsUnsecure
 ```
 
-Revert the current action to its tagged version (using the trailing `# <version>` comment when available).
+Revert the current action to its tagged version.
 
 ### Unsecure All Actions
 

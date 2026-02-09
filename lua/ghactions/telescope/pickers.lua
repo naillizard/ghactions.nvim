@@ -330,23 +330,7 @@ local function update_action_in_file(selection, version_entry)
     local current_line = vim.fn.getline(line_num)
 
     -- Replace the action in YAML format, preserving quote style if present
-    local new_line
-    if current_line:match "uses:%s*[\"']" then
-      -- With quotes
-      local quote_char = current_line:match "uses:%s*([\"'])"
-      new_line =
-        current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-    else
-      -- Without quotes
-      new_line = current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
-    end
-
-    -- Add comment with tag name if we're using SHA and original was a tag
-    -- Only add comment if this specific line didn't already have one
-    if is_sha and not current_line:match("#.*v%d") then
-      local comment = " # " .. version_entry.version
-      new_line = new_line:gsub("%s*$", "") .. comment
-    end
+    local new_line = versions.update_action_in_line(current_line, new_action)
 
     vim.fn.setline(line_num, new_line)
   end

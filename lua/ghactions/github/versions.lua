@@ -45,6 +45,27 @@ function M.extract_comment_version(line)
   return nil
 end
 
+-- Update action in a YAML workflow line
+-- Replaces the action@version with new_action while preserving quote style
+-- Examples:
+--   "uses: actions/checkout@v3" -> "uses: actions/checkout@v4"
+--   'uses: "actions/checkout@v3"' -> 'uses: "actions/checkout@v4"'
+--   "      uses: actions/checkout@v3" -> "      uses: actions/checkout@v4"
+function M.update_action_in_line(current_line, new_action)
+  if not current_line or not new_action then
+    return current_line
+  end
+
+  if current_line:match "uses:%s*[\"']" then
+    -- With quotes
+    local quote_char = current_line:match "uses:%s*([\"'])"
+    return current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
+  else
+    -- Without quotes
+    return current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
+  end
+end
+
 -- Parse owner and repo from action name
 -- Examples: "actions/checkout" -> "actions", "checkout"
 function M.parse_owner_repo(action_name)

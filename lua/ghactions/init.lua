@@ -278,19 +278,7 @@ function M._create_commands()
         local new_action = action_name .. "@" .. new_version
 
         -- Replace the action in YAML format, preserving quote style if present
-        local new_line
-        if content:match "uses:%s*[\"']" then
-          -- With quotes
-          local quote_char = content:match "uses:%s*([\"'])"
-          new_line = content:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-        else
-          -- Without quotes
-          new_line = content:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
-        end
-
-        -- Add comment with tag name at the end of the line
-        local comment = " # " .. version_entry.version
-        new_line = new_line:gsub("%s*$", "") .. comment
+        local new_line = versions.update_action_in_line(content, new_action)
 
         vim.fn.setline(line, new_line)
         
@@ -346,22 +334,11 @@ function M._create_commands()
 
     local new_action = action_name .. "@" .. original_version
 
-    -- Replace the action in YAML format, preserving quote style if present
-    local new_line
-    if content:match "uses:%s*[\"']" then
-      -- With quotes
-      local quote_char = content:match "uses:%s*([\"'])"
-      new_line = content:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-    else
-      -- Without quotes
-      new_line = content:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
-    end
+    -- Remove any existing comment before updating
+    local content_without_comment = content:gsub("%s*#.*$", "")
 
-    -- Remove the comment added by GhActionsSecure if present (format: # version)
-    -- Matches patterns like: # v5, # v5.0, # v5.0.0, # v1.2.3-beta, etc.
-    -- Handle both comments inside and outside quotes
-    new_line = new_line:gsub("%s*#%s*v[%d%.%w%-]*", "")
-    new_line = new_line:gsub('"%s*$', '"')  -- Clean up trailing whitespace inside quotes
+    -- Replace the action in YAML format, preserving quote style if present
+    local new_line = versions.update_action_in_line(content_without_comment, new_action)
 
     vim.fn.setline(line, new_line)
     vim.notify("Unsecured action to version: " .. new_action, vim.log.levels.INFO)

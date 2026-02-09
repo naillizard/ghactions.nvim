@@ -9,13 +9,16 @@ local function secure_actions(actions)
 
   for _, action in ipairs(actions) do
     local success, result = pcall(function()
-      if action.current_version_type == "sha" then
+      if action.current_version_type == "sha" and action.comment_version then
+        -- Skip if already secured with a comment (can unsecure later)
         skipped_count = skipped_count + 1
         return { processed = false, skipped = true }
       end
 
       local target_version = action.current_version
-      local commit_sha = versions.get_commit_sha_for_version(action.action_name, target_version)
+      -- Use comment version if available (from old secure), otherwise use current version
+      local version_to_secure = action.comment_version or target_version
+      local commit_sha = versions.get_commit_sha_for_version(action.action_name, version_to_secure)
       if not commit_sha then
         skipped_count = skipped_count + 1
         vim.notify(
@@ -26,17 +29,16 @@ local function secure_actions(actions)
       end
 
       local current_line = vim.fn.getline(action.line_number)
-      local new_line = current_line:gsub("%s*#.*$", "")
       local new_action = action.action_name .. "@" .. commit_sha
 
-      if current_line:match "uses:%s*[\"']" then
-        local quote_char = current_line:match "uses:%s*([\"'])"
-        new_line = new_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-      else
-        new_line = new_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
+      -- Update the action to use SHA
+      local new_line = versions.update_action_in_line(current_line, new_action)
+
+      -- Add comment with original version to allow unsecuring later
+      if not current_line:match("#.*") then
+        new_line = new_line:gsub("%s*$", "") .. " # " .. version_to_secure
       end
 
-      new_line = new_line:gsub("%s*$", "") .. " # " .. target_version
       vim.fn.setline(action.line_number, new_line)
       return { processed = true, skipped = false }
     end)
@@ -67,26 +69,22 @@ local function unsecure_actions(actions)
       end
 
       local original_version = action.comment_version or action.original_version
-      if not original_version or original_version == "" then
+      if not original_version or original_version == "" or M.is_commit_sha(original_version) then
         skipped_count = skipped_count + 1
         vim.notify(
-          "Skipping " .. action.action_name .. ": missing original version comment",
+          "Skipping " .. action.action_name .. ": missing original tag version",
           vim.log.levels.WARN
         )
         return { processed = false, skipped = true }
       end
 
       local current_line = vim.fn.getline(action.line_number)
-      local new_line = current_line:gsub("%s*#.*$", "")
       local new_action = action.action_name .. "@" .. original_version
 
-      if current_line:match "uses:%s*[\"']" then
-        local quote_char = current_line:match "uses:%s*([\"'])"
-        new_line = new_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
-      else
-        new_line = new_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
-      end
+      -- Remove any existing comment before updating
+      local line_without_comment = current_line:gsub("%s*#.*$", "")
 
+      local new_line = versions.update_action_in_line(line_without_comment, new_action)
       vim.fn.setline(action.line_number, new_line)
       return { processed = true, skipped = false }
     end)

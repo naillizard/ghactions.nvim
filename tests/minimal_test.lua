@@ -477,7 +477,87 @@ function M.run_all()
       assert_equal(entry.most_recent_version, "v4", "Should identify v4 as most recent")
       assert_equal(entry.most_recent_version_type, "tag", "Should preserve version type")
       assert_equal(entry.most_recent_index, 2, "Should track index of most recent")
-      
+
+    end)
+
+    test("update_action_in_file no comment addition", function()
+      -- Test that update_action_in_file does NOT add comments
+
+      local function get_version_for_update(version_entry)
+        if not version_entry then
+          return nil
+        end
+
+        if version_entry.type == "release" then
+          if version_entry.commit and version_entry.commit.sha then
+            return version_entry.commit.sha, true
+          end
+          return version_entry.version, false
+        elseif version_entry.type == "tag" then
+          return version_entry.version, false
+        else
+          local is_commit_sha = version_entry.version:match("^%x+$") and #version_entry.version >= 7
+          return version_entry.version, is_commit_sha
+        end
+      end
+
+      local function update_action_line(current_line, version_entry)
+        local new_version, is_sha = get_version_for_update(version_entry)
+        local new_action = "actions/checkout@" .. new_version
+
+        local new_line
+        if current_line:match "uses:%s*[\"']" then
+          local quote_char = current_line:match "uses:%s*([\"'])"
+          new_line = current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
+        else
+          new_line = current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
+        end
+
+        return new_line
+      end
+
+      -- Test 1: Update to SHA should NOT add comment
+      local release_entry = {
+        type = "release",
+        version = "v4.0.0",
+        commit = { sha = "abc123def456" }
+      }
+
+      local original_line = "      uses: actions/checkout@v3"
+      local updated_line = update_action_line(original_line, release_entry)
+      assert_equal(updated_line:match("uses: actions/checkout@abc123def456"), "uses: actions/checkout@abc123def456", "Should update to new version")
+      assert_equal(updated_line:match("# v4%.0%.0"), nil, "Should NOT add version comment")
+
+    end)
+
+    test("unsecure action removes comment", function()
+      -- Test that unsecuring removes comments
+
+      local function update_action_line(current_line, new_action)
+        if current_line:match "uses:%s*[\"']" then
+          local quote_char = current_line:match "uses:%s*([\"'])"
+          return current_line:gsub("uses:%s*[\"'][^\"'%s]+[\"']?", "uses: " .. quote_char .. new_action .. quote_char)
+        else
+          return current_line:gsub("uses:%s*[^\"'%s]+", "uses: " .. new_action)
+        end
+      end
+
+      -- Test 1: Line with comment should have comment removed
+      local line_with_comment = "      uses: actions/checkout@abc123def # v3"
+      local line_without_comment = line_with_comment:gsub("%s*#.*$", "")
+      local new_action = "actions/checkout@v3"
+      local result = update_action_line(line_without_comment, new_action)
+
+      assert_equal(result:match("# v3"), nil, "Should NOT have comment after unsecuring")
+      assert_equal(result:match("uses: actions/checkout@v3"), "uses: actions/checkout@v3", "Should update to tag version")
+
+      -- Test 2: Line without comment should work normally
+      local line_no_comment = "uses: actions/checkout@abc123def"
+      result = update_action_line(line_no_comment, new_action)
+
+      assert_equal(result:match("uses: actions/checkout@v3"), "uses: actions/checkout@v3", "Should update to tag version")
+      assert_equal(result:match("#"), nil, "Should NOT have any comment")
+
     end)
   end
 

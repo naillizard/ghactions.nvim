@@ -1,0 +1,11 @@
+## 1. Implementation
+- [x] 1.1 Remove comment addition logic from update_action_in_file function
+- [x] 1.2 Test version updates to ensure comments are no longer added
+- [x] 1.3 Verify existing actions with comments remain unchanged during updates
+- [x] 1.4 Extract common action update logic to reusable function in versions.lua
+- [x] 1.5 Update all code locations to use reusable function (pickers.lua, secure_all.lua, init.lua)
+- [x] 1.6 Remove comment addition from secure_actions function in secure_all.lua
+- [x] 1.7 Update README to remove references to comment feature
+- [x] 1.8 Fix unsecure_all actions by adding comment preservation to secure function
+- [x] 1.9 Add comment to secure actions for unsecuring capability
+- [x] 1.10 Update README to reflect comment addition in secure all
